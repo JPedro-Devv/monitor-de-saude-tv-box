@@ -9,6 +9,16 @@ def _run(cmd: list[str]) -> str:
         return ""
 
 
+def _run_with_su_fallback(args: list[str]) -> str:
+    """Tenta executar comando diretamente; se vazio/falhar, tenta via `su -c` (root)."""
+    out = _run(args)
+    if out.strip():
+        return out
+    # fallback com root (comum em TV Box com Termux + su)
+    cmd_str = " ".join(args)
+    return _run(["su", "-c", cmd_str])
+
+
 def _parse_bool(value: Optional[str]) -> Optional[bool]:
     if value is None:
         return None
@@ -31,8 +41,8 @@ def collect_display_status() -> Dict[str, Any]:
         "notes": [],
     }
 
-    # 1) dumpsys power/display (requer permissões adequadas; em root/Termux costuma funcionar)
-    power = _run(["dumpsys", "power"])
+    # 1) dumpsys power/display (tenta direto e, se necessário, via su/root)
+    power = _run_with_su_fallback(["dumpsys", "power"])
     if power:
         for line in power.splitlines():
             line_stripped = line.strip()
@@ -47,13 +57,17 @@ def collect_display_status() -> Dict[str, Any]:
                 if result["screen_on"] is None:
                     result["screen_on"] = state.upper() == "ON"
 
-    display = _run(["dumpsys", "display"])
+    display = _run_with_su_fallback(["dumpsys", "display"])
     if display:
         lowered = display.lower()
         # heurísticas simples; podem ser refinadas por modelo de device
+        if "mglobaldisplaystate=on" in lowered:
+            result["screen_on"] = True
         if "mstate=on" in lowered or "state=on" in lowered:
             result["screen_on"] = True if result["screen_on"] is None else result["screen_on"]
-        if "connected" in lowered:
+        if "mglobaldisplaystate=off" in lowered:
+            result["screen_on"] = False if result["screen_on"] is None else result["screen_on"]
+        if "connected" in lowered and "disconnected" not in lowered:
             result["output_connected"] = True
         elif "disconnected" in lowered and result["output_connected"] is None:
             result["output_connected"] = False

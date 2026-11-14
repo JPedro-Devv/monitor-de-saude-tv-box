@@ -49,14 +49,49 @@ def get_memory_percent() -> Optional[float]:
 
 
 def get_disk_percent(path: str = "/") -> Optional[float]:
+    """Retorna percentual de uso do disco. Em Android, '/' pode não refletir o
+    armazenamento de dados; por isso tentamos fallbacks comuns quando necessário."""
+    candidates = [path]
+    if path == "/":
+        candidates = ["/data", "/storage/emulated/0", "/"]
+
+    for candidate in candidates:
+        try:
+            usage = shutil.disk_usage(candidate)
+            if usage.total == 0:
+                continue
+            used = usage.total - usage.free
+            return round((used / usage.total) * 100, 2)
+        except Exception:
+            continue
+
+    # Fallback: tenta parsear saída do `df` (útil em alguns ambientes Android)
     try:
-        usage = shutil.disk_usage(path)
-        if usage.total == 0:
-            return None
-        used = usage.total - usage.free
-        return round((used / usage.total) * 100, 2)
+        out = subprocess.check_output(
+            ["df"], stderr=subprocess.STDOUT, text=True, timeout=5
+        )
+        # procura ponto de montagem /data ou /storage/emulated
+        preferred_mounts = ("/data", "/storage/emulated")
+        for line in out.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) < 6:
+                continue
+            mount = parts[-1]
+            usep = parts[-2]
+            if not usep.endswith("%"):
+                continue
+            if any(mount.startswith(m) for m in preferred_mounts) or mount == "/":
+                try:
+                    val = float(usep.strip("%"))
+                    if mount == "/" and val == 0.0:
+                        continue
+                    return round(val, 2)
+                except Exception:
+                    continue
     except Exception:
-        return None
+        pass
+
+    return None
 
 
 def get_cpu_percent(sample_interval: float = 0.3) -> Optional[float]:
