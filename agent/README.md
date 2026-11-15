@@ -18,7 +18,7 @@ agent/
    │  ├─ network.py        # IP e heurística de VPN/interface
    │  ├─ temperature.py    # temperatura (thermal zones / fallback de bateria)
    │  ├─ apps.py           # status dos apps/processos monitorados
-   │  └─ display.py        # conexão HDMI/saída de vídeo via sysfs (sem dumpsys/su)
+   │  └─ display.py        # conexão/link HDMI via sysfs (não indica monitor ligado)
    └─ executors/
       ├─ __init__.py       # despacho de comandos por tipo
       ├─ base.py
@@ -51,7 +51,7 @@ agent/
     "temperature_c": 54.1
   },
   "network": { "ip_address": "10.8.0.15", "vpn_connected": true, "interface": "tun0" },
-  "display": { "output_connected": true, "notes": ["hdmi_state=hdmi=1"] },
+  "display": { "hdmi_connected": true, "notes": ["hdmi_state=hdmi=1"] },
   "apps": [ { "key": "critico", "identifier": "com.app.anuncios", "running": true } ]
 }
 ```
@@ -96,6 +96,7 @@ Para rodar em segundo plano no Termux, você pode usar `nohup`, `tmux`, ou servi
 ## Observações e limitações (esqueleto)
 
 - Coletas de **temperatura** e **display (HDMI)** são *best-effort* e variam por modelo/versão do Android; o código tenta múltiplas fontes (`/sys`, sysfs de HDMI/switch/extcon, DRM) conforme disponibilidade.
+- `display.hdmi_connected` indica **detecção de conexão/link HDMI (hotplug/cabo)**, e **não garante** que o monitor esteja ligado, exibindo imagem ou funcional.
 - O campo `apps` verifica processo/pacote de forma simples a partir das entradas de `WATCHED_APPS` (`chave=identificador`), preservando todas as entradas; ajuste os identificadores conforme o app/processo real no dispositivo.
 - O envio ainda não possui fila local persistente para períodos sem rede (pode ser adicionado depois).
 - O resultado do comando (ack) não é reenviado em endpoint dedicado neste esqueleto — evolução natural: reportar status no próximo `ingest` ou em `POST /commands/{id}/ack`.

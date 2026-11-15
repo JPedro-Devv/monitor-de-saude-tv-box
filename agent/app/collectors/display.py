@@ -24,9 +24,11 @@ def _parse_connection_state(value: str) -> Optional[bool]:
 
 
 def collect_display_status() -> Dict[str, Any]:
-    """Coleta status de conexão HDMI/saída de vídeo via sysfs (sem dumpsys/su)."""
+    """Coleta status de conexão/link HDMI via sysfs (sem dumpsys/su).
+    Observação: indica detecção de conexão/cabo (hotplug), não garante que o monitor
+    esteja ligado, exibindo imagem ou funcional."""
     result: Dict[str, Any] = {
-        "output_connected": None,
+        "hdmi_connected": None,
         "notes": [],
     }
 
@@ -37,11 +39,12 @@ def collect_display_status() -> Dict[str, Any]:
         if statuses:
             result["notes"].append("drm_status=" + ",".join(statuses))
             if any(s == "connected" for s in statuses):
-                result["output_connected"] = True
+                result["hdmi_connected"] = True
             elif all(s != "connected" for s in statuses):
-                result["output_connected"] = False
+                result["hdmi_connected"] = False
 
     # 2) HDMI/switch/extcon (device-específico). Ex.: "HDMI=1"/"HDMI=0"
+    # Sinal de link/hotplug: pode permanecer "conectado" mesmo com monitor desligado.
     hdmi_raw = _run(
         [
             "sh",
@@ -56,11 +59,11 @@ def collect_display_status() -> Dict[str, Any]:
         result["notes"].append("hdmi_state=" + ",".join(hdmi_vals))
         states = [_parse_connection_state(v) for v in hdmi_vals]
         known = [s for s in states if s is not None]
-        # HDMI explícito tem prioridade como sinal de conexão do monitor
+        # HDMI explícito tem prioridade como sinal de conexão/link detectado
         if any(s is True for s in known):
-            result["output_connected"] = True
+            result["hdmi_connected"] = True
         elif known and all(s is False for s in known):
-            result["output_connected"] = False
+            result["hdmi_connected"] = False
 
     if not result["notes"]:
         result.pop("notes", None)
