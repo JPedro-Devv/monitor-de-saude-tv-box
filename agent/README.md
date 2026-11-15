@@ -16,9 +16,9 @@ agent/
    ├─ collectors/
    │  ├─ system.py         # CPU, RAM, disco, uptime
    │  ├─ network.py        # IP e heurística de VPN/interface
-   │  ├─ temperature.py    # temperatura (thermal zones / dumpsys battery)
+   │  ├─ temperature.py    # temperatura (thermal zones / fallback de bateria)
    │  ├─ apps.py           # status dos apps/processos monitorados
-   │  └─ display.py        # estado da tela/saída de vídeo (registro no MVP)
+   │  └─ display.py        # conexão HDMI/saída de vídeo via sysfs (sem dumpsys/su)
    └─ executors/
       ├─ __init__.py       # despacho de comandos por tipo
       ├─ base.py
@@ -28,7 +28,7 @@ agent/
 ## Como funciona (fluxo)
 
 1. **Loop periódico** (`main.py`): executa um ciclo a cada `INTERVAL_SECONDS` (padrão: 300s / 5 min).
-2. **Coleta**: os coletores em `app/collectors/` reúnem métricas de sistema, rede, temperatura, estado do display e apps monitorados (`WATCHED_APPS`).
+2. **Coleta**: os coletores em `app/collectors/` reúnem métricas de sistema, rede, temperatura, conexão HDMI/display e apps monitorados (`WATCHED_APPS`).
 3. **Montagem do payload** (`build_payload`): gera um JSON com `device_id`, `token`, timestamp, métricas, rede, display e apps.
 4. **Envio** (`sender.py`): faz `POST` para `SERVER_URL + INGEST_PATH` (ex.: `/api/v1/ingest`).
 5. **Comandos na resposta**: se o servidor responder com `commands` pendentes, o agente despacha para os executores em `app/executors/`.
@@ -51,7 +51,7 @@ agent/
     "temperature_c": 54.1
   },
   "network": { "ip_address": "10.8.0.15", "vpn_connected": true, "interface": "tun0" },
-  "display": { "screen_on": true, "awake": "Awake", "output_connected": true },
+  "display": { "output_connected": true, "notes": ["hdmi_state=hdmi=1"] },
   "apps": [ { "key": "critico", "identifier": "com.app.anuncios", "running": true } ]
 }
 ```
@@ -95,7 +95,7 @@ Para rodar em segundo plano no Termux, você pode usar `nohup`, `tmux`, ou servi
 
 ## Observações e limitações (esqueleto)
 
-- Coletas de **temperatura** e **display** são *best-effort* e variam por modelo/versão do Android; o código tenta múltiplas fontes (`/sys`, `dumpsys`, DRM) com fallback.
-- O campo `apps` verifica processo/pacote de forma simples; a identificação exata do “app crítico” (pacote, activity em foreground etc.) deve ser ajustada quando você definir qual é.
+- Coletas de **temperatura** e **display (HDMI)** são *best-effort* e variam por modelo/versão do Android; o código tenta múltiplas fontes (`/sys`, sysfs de HDMI/switch/extcon, DRM) conforme disponibilidade.
+- O campo `apps` verifica processo/pacote de forma simples a partir das entradas de `WATCHED_APPS` (`chave=identificador`), preservando todas as entradas; ajuste os identificadores conforme o app/processo real no dispositivo.
 - O envio ainda não possui fila local persistente para períodos sem rede (pode ser adicionado depois).
 - O resultado do comando (ack) não é reenviado em endpoint dedicado neste esqueleto — evolução natural: reportar status no próximo `ingest` ou em `POST /commands/{id}/ack`.

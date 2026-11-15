@@ -1,5 +1,5 @@
 import subprocess
-from typing import Any, Dict, List
+from typing import Any, Iterable, List, Tuple
 
 
 def _run(cmd: list[str]) -> str:
@@ -20,12 +20,13 @@ def _is_process_running(identifier: str) -> bool:
     return identifier.lower() in out.lower()
 
 
-def collect_apps_status(watched_apps: Dict[str, str]) -> List[Dict[str, Any]]:
+def collect_apps_status(watched_apps: Iterable[Tuple[str, str]]) -> List[Dict[str, Any]]:
     """Retorna status dos apps monitorados.
-    watched_apps: {chave_logica: pacote_ou_nome_do_processo}
+    watched_apps: iterável de (chave_logica, pacote_ou_nome_do_processo),
+    preservando ordem e permitindo múltiplas entradas.
     """
     results: List[Dict[str, Any]] = []
-    for key, identifier in (watched_apps or {}).items():
+    for key, identifier in (watched_apps or []):
         running = _is_process_running(identifier)
         results.append(
             {

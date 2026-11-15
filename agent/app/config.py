@@ -1,25 +1,26 @@
 import os
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import List, Tuple
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-def _parse_watched_apps(raw: str) -> Dict[str, str]:
-    """Converte 'chave=pacote,chave2=proc' em dict {chave: identificador}."""
-    apps: Dict[str, str] = {}
+def _parse_watched_apps(raw: str) -> List[Tuple[str, str]]:
+    """Converte 'chave=pacote,chave2=proc' em lista [(chave, identificador), ...].
+    Preserva a ordem e permite múltiplos apps com a mesma chave ou identificadores distintos."""
+    apps: List[Tuple[str, str]] = []
     for item in (raw or "").split(","):
         item = item.strip()
         if not item:
             continue
         if "=" in item:
             key, value = item.split("=", 1)
-            apps[key.strip()] = value.strip()
+            apps.append((key.strip(), value.strip()))
         else:
             # Se não houver chave explícita, usa o próprio valor como chave
-            apps[item] = item
+            apps.append((item, item))
     return apps
 
 
@@ -38,7 +39,7 @@ class Config:
     ingest_path: str = os.getenv("INGEST_PATH", "/api/v1/ingest")
     interval_seconds: int = int(os.getenv("INTERVAL_SECONDS", "300"))
     http_timeout_seconds: int = int(os.getenv("HTTP_TIMEOUT_SECONDS", "15"))
-    watched_apps: Dict[str, str] = field(
+    watched_apps: List[Tuple[str, str]] = field(
         default_factory=lambda: _parse_watched_apps(os.getenv("WATCHED_APPS", ""))
     )
     allow_reboot: bool = _env_bool("ALLOW_REBOOT", False)
