@@ -1,0 +1,52 @@
+name: Release Server
+
+on:
+  push:
+    tags:
+      - "server-v*"         # dispara ao enviar tags como server-v0.1.0
+  workflow_dispatch:        # permite executar manualmente pela aba Actions
+    inputs:
+      tag:
+        description: "Tag da release (ex.: server-v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write           # necessário para criar release e enviar assets
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Definir versão/tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Empacotar servidor e gerar checksum
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          tar -czf "${TAG}.tar.gz" server
+          sha256sum "${TAG}.tar.gz" > "${TAG}.tar.gz.sha256"
+          echo "Conteúdo do pacote (primeiros arquivos):"
+          tar -tzf "${TAG}.tar.gz" | head -n 30
+
+      - name: Publicar release e anexar artefatos
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Server ${{ steps.vars.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.vars.outputs.tag }}.tar.gz
+            ${{ steps.vars.outputs.tag }}.tar.gz.sha256
